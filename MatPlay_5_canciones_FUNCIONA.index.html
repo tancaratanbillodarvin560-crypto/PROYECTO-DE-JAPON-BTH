@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>MatPlay</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Arial,sans-serif;color:#fff}
+body{background:linear-gradient(135deg,#06183b,#0754b8,#47158c,#06265c);background-size:400% 400%;animation:bg 16s ease infinite}
+@keyframes bg{0%{background-position:0 50%}50%{background-position:100% 50%}100%{background-position:0 50%}}
+button{font:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.top{position:fixed;top:10px;left:10px;z-index:100}.menuBtn,.musicBtn{border:0;border-radius:14px;padding:11px 14px;color:#fff;font-weight:bold;box-shadow:0 6px 20px #0008}
+.menuBtn{background:#1455ad;font-size:25px;line-height:1}.musicBtn{position:fixed;right:10px;top:10px;z-index:100;background:#9b2bd1}
+.menu{display:none;position:absolute;top:48px;left:0;width:205px;padding:8px;background:#081e4d;border:1px solid #68b5ff;border-radius:15px;box-shadow:0 12px 35px #000b}.menu.open{display:block}
+.menu button{display:block;width:100%;margin:4px 0;border:0;border-radius:10px;padding:12px;background:#1455ad;color:#fff;text-align:left}
+.app{width:100%;max-width:850px;margin:auto;padding:62px 12px 28px}
+header{text-align:center}.logo{font-size:36px;font-weight:900;text-shadow:0 0 18px #6de6ff}.sub{opacity:.9}
+.stats{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:14px}.stat{background:#0a2b60dd;border:1px solid #59aaff;border-radius:12px;padding:9px 16px}
+.game{max-width:650px;margin:auto;padding:18px;background:#061a40ee;border:1px solid #67afff;border-radius:22px;box-shadow:0 15px 45px #0009}
+.grade,.progress{text-align:center;margin:6px}.grade{color:#c9e5ff}.progress{font-size:13px;opacity:.85}
+.question{min-height:105px;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;margin:15px 0;border-radius:18px;background:#102b68;border:1px solid #587cff;font-size:34px;font-weight:900}
+.answers{display:grid;grid-template-columns:1fr 1fr;gap:11px}.answer{min-height:64px;border:1px solid #71b7ff;border-radius:13px;background:#1455a8;color:#fff;padding:13px;font-size:21px;font-weight:bold}.answer.correct{background:#138650!important}.answer.wrong{background:#b52b42!important}.answer:disabled{opacity:.9}
+.controls{display:flex;gap:10px;margin-top:14px}.control{flex:1;border:0;border-radius:13px;padding:13px;background:linear-gradient(90deg,#1768c7,#8735ca);color:#fff;font-weight:bold}.control:disabled{opacity:.45}
+.message{text-align:center;min-height:28px;margin-top:12px;font-weight:bold}.info{text-align:center;font-size:12px;opacity:.82;margin:15px auto;max-width:650px}
+@media(max-width:500px){.answers{grid-template-columns:1fr}.question{font-size:29px}.logo{font-size:31px}.musicBtn{max-width:145px;font-size:12px}}
+</style>
+</head>
+<body>
+<div class="top">
+<button id="menuBtn" class="menuBtn" type="button" aria-label="Grados">⋮</button>
+<div id="gradeMenu" class="menu">
+<button type="button" data-grade="1">1.º de Secundaria</button>
+<button type="button" data-grade="2">2.º de Secundaria</button>
+<button type="button" data-grade="3">3.º de Secundaria</button>
+<button type="button" data-grade="4">4.º de Secundaria</button>
+<button type="button" data-grade="5">5.º de Secundaria</button>
+</div>
+</div>
+<button id="musicBtn" class="musicBtn" type="button">🎸 Música: OFF</button>
+
+<div class="app">
+<header><div class="logo">MATPLAY 🎮</div><div class="sub">Aprende matemática jugando</div></header>
+<div class="stats">
+<div class="stat">🔥 Racha: <b id="streak">0</b></div>
+<div class="stat">⭐ Puntos: <b id="points">0</b></div>
+</div>
+<section class="game">
+<div id="gradeText" class="grade">1.º de Secundaria</div>
+<div id="progress" class="progress">Pregunta 1 de 10</div>
+<div id="question" class="question">Cargando ejercicio...</div>
+<div id="answers" class="answers"></div>
+<div class="controls">
+<button id="hintBtn" class="control" type="button">💡 Pista (-10)</button>
+<button id="nextBtn" class="control" type="button" disabled>Siguiente ➜</button>
+</div>
+<div id="message" class="message"></div>
+</section>
+<div class="info">🎸 5 pistas: Juegos de Seducción · Té para Tres · Entre Caníbales · Lo que Sangra · AC/DC. Son instrumentales originales generados dentro de la app.</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+var state={grade:1,streak:0,points:0,q:1,answer:null,answered:false,hints:0};
+function loadNum(k,d){try{var v=parseInt(localStorage.getItem(k),10);return isNaN(v)?d:v}catch(e){return d}}
+function save(){try{localStorage.setItem("mp_grade",String(state.grade));localStorage.setItem("mp_streak",String(state.streak));localStorage.setItem("mp_points",String(state.points))}catch(e){}}
+state.grade=loadNum("mp_grade",1); if(state.grade<1||state.grade>5)state.grade=1;
+state.streak=loadNum("mp_streak",0);state.points=loadNum("mp_points",0);
+
+function $(id){return document.getElementById(id)}
+function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=rnd(0,i),t=a[i];a[i]=a[j];a[j]=t}return a}
+function uniqueOptions(correct){
+ var a=[correct],d=1,n;
+ while(a.length<4){
+   n=correct+d;if(a.indexOf(n)<0)a.push(n);
+   if(a.length<4){n=correct-d;if(n>=0&&a.indexOf(n)<0)a.push(n)}
+   if(a.length<4){n=correct+d*2;if(a.indexOf(n)<0)a.push(n)}
+   d++;
+ }
+ return shuffle(a);
+}
+function makeQuestion(){
+ var g=state.grade,a,b,x,ans,text,t=rnd(1,4);
+ if(g===1){
+  if(t===1){a=rnd(5,80);b=rnd(5,80);ans=a+b;text=a+" + "+b}
+  else if(t===2){a=rnd(20,100);b=rnd(5,a);ans=a-b;text=a+" − "+b}
+  else if(t===3){a=rnd(2,12);b=rnd(2,12);ans=a*b;text=a+" × "+b}
+  else{b=rnd(2,12);ans=rnd(2,12);a=b*ans;text=a+" ÷ "+b}
+ }else if(g===2){
+  if(t===1){a=rnd(10,90);b=rnd(10,90);ans=a+b;text=a+" + "+b}
+  else if(t===2){a=rnd(3,12);b=rnd(3,12);ans=a*b;text=a+" × "+b}
+  else if(t===3){a=rnd(50,500);b=rnd(5,50);ans=Math.round(a*b/100);text=b+"% de "+a}
+  else{a=rnd(30,120);b=rnd(5,a);ans=a-b;text=a+" − "+b}
+ }else if(g===3){
+  if(t===1){a=rnd(-20,20);b=rnd(-20,20);ans=a+b;text="("+a+") + ("+b+")"}
+  else if(t===2){a=rnd(2,15);ans=a*a;text=a+"²"}
+  else if(t===3){a=rnd(2,20);b=rnd(1,20);ans=b;text="x + "+a+" = "+(a+b)+" → x"}
+  else{a=rnd(3,15);b=rnd(3,15);ans=a*b;text=a+" × "+b}
+ }else if(g===4){
+  if(t===1){a=rnd(2,15);b=rnd(1,20);x=rnd(2,10);ans=x;text=a+"x + "+b+" = "+(a*x+b)+" → x"}
+  else if(t===2){a=rnd(3,20);ans=a*a;text=a+"²"}
+  else if(t===3){a=rnd(5,20);b=rnd(2,15);ans=a*b;text=a+" × "+b}
+  else{a=rnd(20,80);b=rnd(5,30);ans=a+b;text=a+" + "+b}
+ }else{
+  if(t===1){a=rnd(3,15);ans=a*a;text=a+"²"}
+  else if(t===2){a=rnd(2,12);ans=a;text="x² = "+(a*a)+" → x positivo"}
+  else if(t===3){a=rnd(5,25);b=rnd(3,15);ans=a*b;text=a+" × "+b}
+  else{a=rnd(20,90);b=rnd(10,60);ans=a+b;text=a+" + "+b}
+ }
+ return {text:text,answer:ans};
+}
+function update(){
+ $("streak").textContent=state.streak;
+ $("points").textContent=state.points;
+ $("gradeText").textContent=state.grade+".º de Secundaria";
+}
+function newQuestion(){
+ var z=makeQuestion(),opts=uniqueOptions(z.answer);
+ state.answer=z.answer;state.answered=false;state.hints=0;
+ $("question").textContent=z.text;
+ $("progress").textContent="Pregunta "+state.q+" de 10";
+ $("message").textContent="";
+ $("nextBtn").disabled=true;
+ $("answers").innerHTML="";
+ for(var i=0;i<opts.length;i++){
+   (function(v,letter){
+    var b=document.createElement("button");
+    b.type="button";b.className="answer";b.textContent=letter+") "+v;b.setAttribute("data-value",String(v));
+    b.addEventListener("click",function(){checkAnswer(b,v)});
+    $("answers").appendChild(b);
+   })(opts[i],String.fromCharCode(65+i));
+ }
+ update();
+}
+function checkAnswer(btn,v){
+ if(state.answered)return;
+ state.answered=true;
+ var bs=$("answers").getElementsByTagName("button");
+ for(var i=0;i<bs.length;i++)bs[i].disabled=true;
+ if(v===state.answer){
+   btn.className+=" correct";state.streak++;
+   var pts=5+Math.min(state.streak*2,20);state.points+=pts;
+   $("message").textContent="✅ ¡Correcto! +"+pts+" puntos";
+ }else{
+   btn.className+=" wrong";
+   for(var j=0;j<bs.length;j++)if(parseInt(bs[j].getAttribute("data-value"),10)===state.answer)bs[j].className+=" correct";
+   state.streak=0;$("message").textContent="❌ Incorrecto. Era "+state.answer;
+ }
+ save();update();$("nextBtn").disabled=false;
+}
+$("nextBtn").addEventListener("click",function(){
+ if(!state.answered)return;
+ if(state.q>=10){state.q=1;$("message").textContent="🏁 ¡Ronda completada!";setTimeout(newQuestion,350)}
+ else{state.q++;newQuestion()}
+});
+$("hintBtn").addEventListener("click",function(){
+ if(state.answered)return;
+ if(state.points<10){$("message").textContent="⭐ Necesitas 10 puntos.";return}
+ if(state.hints>=3){$("message").textContent="💡 Máximo 3 pistas por pregunta.";return}
+ var bs=$("answers").getElementsByTagName("button"),valid=[];
+ for(var i=0;i<bs.length;i++)if(parseInt(bs[i].getAttribute("data-value"),10)!==state.answer&&!bs[i].disabled)valid.push(bs[i]);
+ if(valid.length){var b=valid[rnd(0,valid.length-1)];b.disabled=true;b.style.opacity=".25";b.textContent="🚫 Eliminada";state.points-=10;state.hints++;save();update();$("message").textContent="💡 Pista usada."}
+});
+$("menuBtn").addEventListener("click",function(e){e.stopPropagation();$("gradeMenu").classList.toggle("open")});
+document.addEventListener("click",function(e){if(!$("gradeMenu").contains(e.target)&&e.target!==$("menuBtn"))$("gradeMenu").classList.remove("open")});
+var gb=$("gradeMenu").getElementsByTagName("button");
+for(var i=0;i<gb.length;i++)gb[i].addEventListener("click",function(){
+ state.grade=parseInt(this.getAttribute("data-grade"),10);state.q=1;state.streak=0;state.points=0;save();$("gradeMenu").classList.remove("open");newQuestion();
+});
+
+/* Música: generada con Web Audio. No usa archivos externos ni bloquea el juego. */
+var audio=null,gain=null,musicTimer=null,musicOn=false,track=0,step=0;
+var songs=[
+ {name:"Juegos de Seducción",tempo:112,ch:[82.41,98,110,123.47]},
+ {name:"Té para Tres",tempo:104,ch:[73.42,87.31,98,110]},
+ {name:"Entre Caníbales",tempo:126,ch:[82.41,110,123.47,146.83]},
+ {name:"Lo que Sangra",tempo:118,ch:[92.50,110,123.47,138.59]},
+ {name:"AC/DC",tempo:130,ch:[73.42,98,110,123.47]}
+];
+function playTone(f,d,type,v,when){
+ if(!audio||!gain)return;
+ try{
+  var o=audio.createOscillator(),g=audio.createGain();
+  o.type=type;o.frequency.value=f;
+  g.gain.setValueAtTime(.0001,when);g.gain.exponentialRampToValueAtTime(v,when+.015);g.gain.exponentialRampToValueAtTime(.0001,when+d);
+  o.connect(g);g.connect(gain);o.start(when);o.stop(when+d+.03);
+ }catch(e){}
+}
+function musicBeat(){
+ if(!musicOn||!audio)return;
+ var s=songs[track],now=audio.currentTime,base=s.ch[Math.floor(step/4)%s.ch.length];
+ playTone(base,.20,"sawtooth",.045,now);
+ if(step%2===0)playTone(base*2,.12,"square",.018,now);
+ if(step%4===0)playTone(base/2,.12,"triangle",.025,now);
+ playTone(step%4===0?55:82,.06,"sine",.045,now);
+ step++;
+}
+$("musicBtn").addEventListener("click",function(){
+ try{
+  var AC=window.AudioContext||window.webkitAudioContext;
+  if(!AC){$("message").textContent="⚠️ Este navegador no admite música.";return}
+  if(!audio){audio=new AC();gain=audio.createGain();gain.gain.value=.32;gain.connect(audio.destination)}
+  if(audio.state==="suspended"&&audio.resume)audio.resume();
+  if(musicOn){
+   musicOn=false;clearInterval(musicTimer);$("musicBtn").textContent="🎸 Música: OFF";
+  }else{
+   track=(track+1)%songs.length;step=0;musicOn=true;
+   $("musicBtn").textContent="🔊 "+songs[track].name;
+   musicBeat();clearInterval(musicTimer);musicTimer=setInterval(musicBeat,60000/songs[track].tempo/2);
+  }
+ }catch(e){musicOn=false;clearInterval(musicTimer);$("musicBtn").textContent="🎸 Música: OFF"}
+});
+
+/* Arranque: el ejercicio se crea siempre, aunque el audio falle. */
+update();newQuestion();
+})();
+</script>
+</body>
+</html>
